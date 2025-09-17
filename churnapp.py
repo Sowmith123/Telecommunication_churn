@@ -1,4 +1,4 @@
-# telecom_churn_app.py
+# churnapp.py
 
 import streamlit as st
 import pandas as pd
@@ -16,14 +16,22 @@ import pickle
 # Load & Preprocess Data
 # -----------------------------
 @st.cache_data
-def load_data():
-    df = pd.read_csv("telecommunication_churn.csv")   # 👈 your dataset path
-    return df
+def load_data(uploaded_file=None):
+    try:
+        # Try default dataset
+        df = pd.read_csv("telecommunications_churn.csv")
+        return df
+    except FileNotFoundError:
+        # Use uploaded dataset
+        if uploaded_file is not None:
+            df = pd.read_csv(uploaded_file)
+            return df
+        else:
+            return None
 
 def preprocess_data(df):
     df = df.copy()
 
-    # Encode categorical features
     le = LabelEncoder()
     if "voice_mail_plan" in df.columns:
         df["voice_mail_plan"] = le.fit_transform(df["voice_mail_plan"])
@@ -32,7 +40,6 @@ def preprocess_data(df):
     if "churn" in df.columns:
         df["churn"] = le.fit_transform(df["churn"])  # Target
 
-    # Drop redundant column if exists
     if "total_charge" in df.columns:
         df.drop(columns=["total_charge"], inplace=True)
 
@@ -46,7 +53,9 @@ def train_model(df):
     X = df.drop(columns=["churn"])
     y = df["churn"]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
 
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
@@ -58,7 +67,6 @@ def train_model(df):
     y_pred = model.predict(X_test_scaled)
     acc = accuracy_score(y_test, y_pred)
 
-    # Save model
     pickle.dump((model, scaler), open("churn_model.pkl", "wb"))
 
     return model, scaler, acc, classification_report(y_test, y_pred, output_dict=True)
@@ -71,7 +79,14 @@ def load_model():
 # -----------------------------
 st.set_page_config(page_title="Telecom Churn Dashboard", layout="wide")
 
-df = load_data()
+# Upload option
+uploaded_file = st.sidebar.file_uploader("📂 Upload Telecom Churn CSV", type=["csv"])
+df = load_data(uploaded_file)
+
+if df is None:
+    st.warning("⚠ No dataset found. Please upload your telecom churn CSV file.")
+    st.stop()
+
 df_clean = preprocess_data(df)
 
 menu = st.sidebar.radio("Navigation", ["📊 Dashboard", "🔮 Predict Single", "📂 Bulk Prediction"])
@@ -82,12 +97,11 @@ menu = st.sidebar.radio("Navigation", ["📊 Dashboard", "🔮 Predict Single", 
 if menu == "📊 Dashboard":
     st.title("📊 Telecom Churn Dashboard")
 
-    # Train Model (or load if already trained)
     model, scaler, acc, report = train_model(df_clean)
 
-    # --- KPIs ---
+    # KPIs
     total_customers = len(df)
-    churned = df[df["churn"] == "yes"].shape[0] if df["churn"].dtype == "object" else df[df["churn"] == 1].shape[0]
+    churned = df[df["churn"].isin(["yes", 1])].shape[0]
     churn_rate = round((churned / total_customers) * 100, 2)
     avg_calls = round(df["customer_service_calls"].mean(), 2)
 
@@ -97,10 +111,12 @@ if menu == "📊 Dashboard":
     col3.metric("📉 Churn Rate (%)", f"{churn_rate}%")
     col4.metric("☎ Avg. Cust Service Calls", avg_calls)
 
-    # --- Plots ---
+    # Charts
     st.subheader("Churn Distribution")
     fig1, ax1 = plt.subplots()
-    df["churn"].value_counts().plot.pie(autopct="%1.1f%%", ax=ax1, colors=["skyblue", "salmon"])
+    df["churn"].value_counts().plot.pie(
+        autopct="%1.1f%%", ax=ax1, colors=["skyblue", "salmon"]
+    )
     st.pyplot(fig1)
 
     st.subheader("Churn by International Plan")
@@ -109,7 +125,7 @@ if menu == "📊 Dashboard":
     st.pyplot(fig2)
 
     st.subheader("Correlation Heatmap")
-    fig3, ax3 = plt.subplots(figsize=(12,6))
+    fig3, ax3 = plt.subplots(figsize=(12, 6))
     sns.heatmap(df_clean.corr(), cmap="coolwarm", annot=False, ax=ax3)
     st.pyplot(fig3)
 
@@ -120,7 +136,6 @@ if menu == "📊 Dashboard":
 # -----------------------------
 elif menu == "🔮 Predict Single":
     st.title("🔮 Single Customer Prediction")
-
     model, scaler = load_model()
 
     # Input form
@@ -140,7 +155,6 @@ elif menu == "🔮 Predict Single":
     evening_charge = st.number_input("Evening Charge", 0.0, 100.0, 20.0)
     night_charge = st.number_input("Night Charge", 0.0, 100.0, 10.0)
     customer_service_calls = st.number_input("Customer Service Calls", 0, 20, 1)
-
     international_plan = st.selectbox("International Plan", ["no", "yes"])
 
     input_data = pd.DataFrame([{
@@ -178,18 +192,23 @@ elif menu == "📂 Bulk Prediction":
     st.title("📂 Bulk Prediction")
     model, scaler = load_model()
 
-    uploaded_file = st.file_uploader("Upload CSV for Prediction", type=["csv"])
-    if uploaded_file is not None:
-        new_data = pd.read_csv(uploaded_file)
+    uploaded_file_bulk = st.file_uploader("Upload CSV for Prediction", type=["csv"])
+    if uploaded_file_bulk is not None:
+        new_data = pd.read_csv(uploaded_file_bulk)
         new_data_enc = preprocess_data(new_data)
 
         X_new = new_data_enc.drop(columns=["churn"], errors="ignore")
         X_new_scaled = scaler.transform(X_new)
 
         preds = model.predict(X_new_scaled)
-        new_data["Churn_Pred"] = ["Yes" if p==1 else "No" for p in preds]
+        new_data["Churn_Pred"] = ["Yes" if p == 1 else "No" for p in preds]
 
         st.dataframe(new_data.head())
 
         csv = new_data.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Download Predictions", data=csv, file_name="churn_predictions.csv", mime="text/csv")
+        st.download_button(
+            "📥 Download Predictions",
+            data=csv,
+            file_name="churn_predictions.csv",
+            mime="text/csv",
+        )
