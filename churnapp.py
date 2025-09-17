@@ -1,17 +1,14 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
 import joblib
 
 # Load dataset
-df = pd.read_csv("telecommunications_churn.csv")
+df = pd.read_csv("telecommunication_churn.csv")
 
 # Load trained model
 model = joblib.load("churn_model.pkl")
-
-# Page config
-st.set_page_config(page_title="Telecom Churn App", layout="wide")
 
 # Sidebar
 st.sidebar.title("📊 Telecom Churn App")
@@ -20,84 +17,62 @@ app_mode = st.sidebar.radio("Choose the App Mode", ["Dashboard", "Churn Predicti
 # -------------------- DASHBOARD --------------------
 if app_mode == "Dashboard":
     st.title("📊 Telecom Churn Dashboard")
+    st.markdown("A detailed view of churn trends, customer behaviors, and insights.")
 
-    # ---- KPIs ----
-    total_customers = len(df)
-    churned_customers = df["churn"].sum()
-    churn_rate = churned_customers / total_customers * 100
-    avg_day_mins = df["day_mins"].mean()
-    avg_total_charge = df["total_charge"].mean()
+    # ---- Dataset Preview
+    with st.expander("📂 Dataset Preview"):
+        st.dataframe(df.head())
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("👥 Total Customers", total_customers)
-    col2.metric("⚠ Churned Customers", churned_customers)
-    col3.metric("📉 Churn Rate (%)", f"{churn_rate:.2f}")
-    col4.metric("💰 Avg. Total Charge", f"${avg_total_charge:.2f}")
+    # ---- Churn Distribution
+    st.subheader("Churn Distribution")
+    churn_counts = df["churn"].value_counts().reset_index()
+    fig = px.pie(churn_counts, names="index", values="churn", color="index",
+                 color_discrete_map={"yes":"red","no":"green"},
+                 title="Churn vs Non-Churn Customers")
+    st.plotly_chart(fig)
 
-    st.markdown("---")
+    # ---- International Plan vs Churn
+    st.subheader("International Plan vs Churn")
+    fig = px.histogram(df, x="international_plan", color="churn", barmode="group",
+                       title="Impact of International Plan on Churn")
+    st.plotly_chart(fig)
 
-    # ---- Filters ----
-    plan_filter = st.selectbox("Filter by International Plan", ["All"] + df["international_plan"].unique().tolist())
-    vmail_filter = st.selectbox("Filter by Voice Mail Plan", ["All"] + df["voice_mail_plan"].unique().tolist())
+    # ---- Customer Service Calls vs Churn
+    st.subheader("Customer Service Calls vs Churn")
+    fig = px.box(df, x="churn", y="customer_service_calls", color="churn",
+                 title="Customer Service Calls Distribution")
+    st.plotly_chart(fig)
 
-    filtered_df = df.copy()
-    if plan_filter != "All":
-        filtered_df = filtered_df[filtered_df["international_plan"] == plan_filter]
-    if vmail_filter != "All":
-        filtered_df = filtered_df[filtered_df["voice_mail_plan"] == vmail_filter]
+    # ---- Average Usage Insights
+    st.subheader("Average Usage (Day, Evening, Night, International)")
+    avg_usage = df.groupby("churn")[["day_mins","evening_mins","night_mins","international_mins"]].mean().reset_index()
+    fig = px.bar(avg_usage, x="churn", y=["day_mins","evening_mins","night_mins","international_mins"],
+                 barmode="group", title="Average Call Minutes by Churn Status")
+    st.plotly_chart(fig)
 
-    # ---- Tabs ----
-    tab1, tab2, tab3 = st.tabs(["📊 Churn Distribution", "📞 Calls & Minutes", "💡 Service Insights"])
+    # ---- Correlation Heatmap
+    st.subheader("Correlation Heatmap (Numerical Features)")
+    numeric_df = df.select_dtypes(include=["float64","int64"])
+    corr = numeric_df.corr()
+    fig = px.imshow(corr, text_auto=True, aspect="auto", color_continuous_scale="RdBu_r",
+                    title="Correlation Heatmap")
+    st.plotly_chart(fig)
 
-    # Tab 1: Churn Distribution
-    with tab1:
-        st.subheader("Churn vs Non-Churn Customers")
-        fig, ax = plt.subplots()
-        sns.countplot(x="churn", data=filtered_df, palette="Set2", ax=ax)
-        st.pyplot(fig)
+    # ---- State-wise Churn (if you have state column)
+    if "state" in df.columns:
+        st.subheader("State-wise Churn Rate")
+        churn_rate = df.groupby("state")["churn"].mean().reset_index()
+        fig = px.choropleth(churn_rate, locations="state", locationmode="USA-states",
+                            color="churn", scope="usa",
+                            color_continuous_scale="Reds", title="Churn Rate by State")
+        st.plotly_chart(fig)
 
-        st.subheader("International Plan vs Churn")
-        fig, ax = plt.subplots()
-        sns.countplot(x="international_plan", hue="churn", data=filtered_df, palette="coolwarm", ax=ax)
-        st.pyplot(fig)
+    st.success("✅ Dashboard Loaded Successfully!")
 
-        st.subheader("Voice Mail Plan vs Churn")
-        fig, ax = plt.subplots()
-        sns.countplot(x="voice_mail_plan", hue="churn", data=filtered_df, palette="Set1", ax=ax)
-        st.pyplot(fig)
-
-    # Tab 2: Calls & Minutes
-    with tab2:
-        st.subheader("Average Call Minutes by Churn Status")
-        fig, ax = plt.subplots(figsize=(8, 5))
-        churn_group = filtered_df.groupby("churn")[["day_mins", "evening_mins", "night_mins", "international_mins"]].mean()
-        churn_group.plot(kind="bar", ax=ax)
-        plt.ylabel("Average Minutes")
-        st.pyplot(fig)
-
-        st.subheader("Customer Service Calls vs Churn")
-        fig, ax = plt.subplots()
-        sns.boxplot(x="churn", y="customer_service_calls", data=filtered_df, palette="Set1", ax=ax)
-        st.pyplot(fig)
-
-    # Tab 3: Service Insights
-    with tab3:
-        st.subheader("Churn by Number of Customer Service Calls")
-        fig, ax = plt.subplots()
-        sns.histplot(filtered_df, x="customer_service_calls", hue="churn", multiple="stack", palette="coolwarm", ax=ax)
-        st.pyplot(fig)
-
-        st.subheader("Charges Comparison by Churn")
-        fig, ax = plt.subplots(figsize=(8, 5))
-        charge_cols = ["day_charge", "evening_charge", "night_charge", "international_charge", "total_charge"]
-        churn_group = filtered_df.groupby("churn")[charge_cols].mean()
-        churn_group.plot(kind="bar", ax=ax)
-        plt.ylabel("Average Charge ($)")
-        st.pyplot(fig)
-
-# -------------------- CHURN PREDICTION --------------------
+# -------------------- PREDICTION --------------------
 elif app_mode == "Churn Prediction":
     st.title("📈 Churn Prediction Tool")
+    st.markdown("Fill the details below to check if a customer is likely to churn.")
 
     # Input form
     account_length = st.number_input("Account Length", min_value=0)
@@ -121,7 +96,6 @@ elif app_mode == "Churn Prediction":
     voice_mail_plan_val = 1 if voice_mail_plan == "yes" else 0
     international_plan_val = 1 if international_plan == "yes" else 0
 
-    # Prediction button
     if st.button("Predict Churn"):
         input_data = pd.DataFrame({
             "account_length": [account_length],
