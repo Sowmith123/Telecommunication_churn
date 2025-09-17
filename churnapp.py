@@ -10,7 +10,7 @@ df = pd.read_csv("telecommunications_churn.csv")
 # Load trained model
 model = joblib.load("churn_model.pkl")
 
-# Configure page
+# Page config
 st.set_page_config(page_title="Telecom Churn App", layout="wide")
 
 # Sidebar
@@ -36,18 +36,18 @@ if app_mode == "Dashboard":
 
     st.markdown("---")
 
-    # ---- Interactive Filters ----
-    state_filter = st.selectbox("Filter by State", ["All"] + sorted(df["state"].unique().tolist()))
-    intl_filter = st.selectbox("Filter by International Plan", ["All", "yes", "no"])
+    # ---- Filters ----
+    plan_filter = st.selectbox("Filter by International Plan", ["All"] + df["international_plan"].unique().tolist())
+    vmail_filter = st.selectbox("Filter by Voice Mail Plan", ["All"] + df["voice_mail_plan"].unique().tolist())
 
     filtered_df = df.copy()
-    if state_filter != "All":
-        filtered_df = filtered_df[filtered_df["state"] == state_filter]
-    if intl_filter != "All":
-        filtered_df = filtered_df[filtered_df["international_plan"] == intl_filter]
+    if plan_filter != "All":
+        filtered_df = filtered_df[filtered_df["international_plan"] == plan_filter]
+    if vmail_filter != "All":
+        filtered_df = filtered_df[filtered_df["voice_mail_plan"] == vmail_filter]
 
-    # ---- Tabs for Insights ----
-    tab1, tab2, tab3 = st.tabs(["📊 Churn Distribution", "📉 Calls & Minutes", "🌍 State Insights"])
+    # ---- Tabs ----
+    tab1, tab2, tab3 = st.tabs(["📊 Churn Distribution", "📞 Calls & Minutes", "💡 Service Insights"])
 
     # Tab 1: Churn Distribution
     with tab1:
@@ -61,7 +61,12 @@ if app_mode == "Dashboard":
         sns.countplot(x="international_plan", hue="churn", data=filtered_df, palette="coolwarm", ax=ax)
         st.pyplot(fig)
 
-    # Tab 2: Calls & Minutes Usage
+        st.subheader("Voice Mail Plan vs Churn")
+        fig, ax = plt.subplots()
+        sns.countplot(x="voice_mail_plan", hue="churn", data=filtered_df, palette="Set1", ax=ax)
+        st.pyplot(fig)
+
+    # Tab 2: Calls & Minutes
     with tab2:
         st.subheader("Average Call Minutes by Churn Status")
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -75,20 +80,19 @@ if app_mode == "Dashboard":
         sns.boxplot(x="churn", y="customer_service_calls", data=filtered_df, palette="Set1", ax=ax)
         st.pyplot(fig)
 
-    # Tab 3: State Insights
+    # Tab 3: Service Insights
     with tab3:
-        st.subheader("Churn Rate by State")
-        churn_state = filtered_df.groupby("state")["churn"].mean().sort_values(ascending=False).head(10)
-        fig, ax = plt.subplots(figsize=(10, 6))
-        churn_state.plot(kind="bar", color="orange", ax=ax)
-        plt.ylabel("Churn Rate")
+        st.subheader("Churn by Number of Customer Service Calls")
+        fig, ax = plt.subplots()
+        sns.histplot(filtered_df, x="customer_service_calls", hue="churn", multiple="stack", palette="coolwarm", ax=ax)
         st.pyplot(fig)
 
-        st.subheader("Top 10 States by Avg. Charges")
-        charge_state = filtered_df.groupby("state")["total_charge"].mean().sort_values(ascending=False).head(10)
-        fig, ax = plt.subplots(figsize=(10, 6))
-        charge_state.plot(kind="bar", color="blue", ax=ax)
-        plt.ylabel("Avg. Charge ($)")
+        st.subheader("Charges Comparison by Churn")
+        fig, ax = plt.subplots(figsize=(8, 5))
+        charge_cols = ["day_charge", "evening_charge", "night_charge", "international_charge", "total_charge"]
+        churn_group = filtered_df.groupby("churn")[charge_cols].mean()
+        churn_group.plot(kind="bar", ax=ax)
+        plt.ylabel("Average Charge ($)")
         st.pyplot(fig)
 
 # -------------------- CHURN PREDICTION --------------------
