@@ -3,6 +3,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+
 """
 Telecommunication Churn Dashboard (v1.0)
 ----------------------------------------
@@ -431,4 +432,5 @@ elif menu == "📂 Bulk Prediction":
         csv = new_data.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Predictions", data=csv,
                            file_name="churn_predictions.csv", mime="text/csv")
+
 
