@@ -1,207 +1,171 @@
-# churnapp.py
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plotly.express as px
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+
+from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
-import pickle
+from xgboost import XGBClassifier
 
 # -----------------------------
-# Load & Preprocess Data
+# Load Data
 # -----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("telecommunications_churn.csv")   # 👈 make sure dataset is uploaded
+    df = pd.read_csv("telecommunication_churn.csv")
     return df
-
-def preprocess_data(df):
-    df = df.copy()
-
-    # Encode categorical features
-    le = LabelEncoder()
-    if "voice_mail_plan" in df.columns:
-        df["voice_mail_plan"] = le.fit_transform(df["voice_mail_plan"])
-    if "international_plan" in df.columns:
-        df["international_plan"] = le.fit_transform(df["international_plan"])
-    if "churn" in df.columns:
-        df["churn"] = le.fit_transform(df["churn"])  # Target
-
-    # Drop redundant column if exists
-    if "total_charge" in df.columns:
-        df.drop(columns=["total_charge"], inplace=True)
-
-    return df
-
-# -----------------------------
-# Outlier Removal
-# -----------------------------
-def remove_outliers(df, cols):
-    df_clean = df.copy()
-    for col in cols:
-        Q1 = df_clean[col].quantile(0.25)
-        Q3 = df_clean[col].quantile(0.75)
-        IQR = Q3 - Q1
-        lower = Q1 - 1.5 * IQR
-        upper = Q3 + 1.5 * IQR
-        df_clean = df_clean[(df_clean[col] >= lower) & (df_clean[col] <= upper)]
-    return df_clean
-
-# -----------------------------
-# Train & Save Model
-# -----------------------------
-@st.cache_resource
-def train_model(df):
-    X = df.drop(columns=["churn"])
-    y = df["churn"]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
-    model = RandomForestClassifier(n_estimators=200, random_state=42)
-    model.fit(X_train_scaled, y_train)
-
-    y_pred = model.predict(X_test_scaled)
-    acc = accuracy_score(y_test, y_pred)
-
-    pickle.dump((model, scaler, X.columns), open("churn_model.pkl", "wb"))
-
-    return model, scaler, acc, classification_report(y_test, y_pred, output_dict=True), X.columns
-
-def load_model():
-    return pickle.load(open("churn_model.pkl", "rb"))
-
-# -----------------------------
-# Streamlit App
-# -----------------------------
-st.set_page_config(page_title="Telecom Churn Dashboard", layout="wide")
 
 df = load_data()
-df_clean = preprocess_data(df)
-
-# Remove outliers
-num_cols = df_clean.select_dtypes(include=np.number).columns.drop("churn")
-df_clean = remove_outliers(df_clean, num_cols)
-
-menu = st.sidebar.radio("Navigation", ["📊 Dashboard", "🔮 Predict Single", "📂 Bulk Prediction"])
 
 # -----------------------------
-# Dashboard
+# Title
 # -----------------------------
-if menu == "📊 Dashboard":
-    st.title("📊 Telecom Churn Dashboard")
-
-    model, scaler, acc, report, feature_names = train_model(df_clean)
-
-    # --- KPIs ---
-    total_customers = len(df)
-    churned = df[df["churn"].isin([1, "yes"])].shape[0]
-    churn_rate = round((churned / total_customers) * 100, 2)
-    avg_calls = round(df["customer_service_calls"].mean(), 2)
-
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-    kpi1.metric("👥 Total Customers", total_customers)
-    kpi2.metric("❌ Churned Customers", churned)
-    kpi3.metric("📉 Churn Rate (%)", f"{churn_rate}%")
-    kpi4.metric("☎ Avg. Cust Service Calls", avg_calls)
-
-    st.markdown("---")
-
-    # --- Visual Insights ---
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Churn Distribution")
-        fig1 = px.pie(df, names="churn", title="Churned vs Loyal Customers", color_discrete_sequence=["skyblue", "salmon"])
-        st.plotly_chart(fig1, use_container_width=True)
-
-    with col2:
-        st.subheader("Churn by International Plan")
-        fig2 = px.histogram(df, x="international_plan", color="churn", barmode="group",
-                            title="International Plan vs Churn")
-        st.plotly_chart(fig2, use_container_width=True)
-
-    col3, col4 = st.columns(2)
-
-    with col3:
-        st.subheader("Customer Service Calls by Churn")
-        fig3 = px.box(df, x="churn", y="customer_service_calls", color="churn")
-        st.plotly_chart(fig3, use_container_width=True)
-
-    with col4:
-        st.subheader("Correlation Heatmap")
-        fig4, ax = plt.subplots(figsize=(6, 4))
-        sns.heatmap(df_clean.corr(), cmap="coolwarm", annot=False, ax=ax)
-        st.pyplot(fig4)
-
-    # --- Feature Importance ---
-    st.subheader("Feature Importance")
-    importances = pd.Series(model.feature_importances_, index=feature_names).sort_values(ascending=False)
-    fig5 = px.bar(importances.head(10), x=importances.head(10).values, y=importances.head(10).index,
-                  orientation="h", title="Top 10 Important Features")
-    st.plotly_chart(fig5, use_container_width=True)
-
-    st.success(f"✅ Model Accuracy: {acc:.2f}")
+st.title("📊 Telecom Churn Dashboard")
+st.markdown("A professional dashboard for *Churn Analysis, EDA, and Prediction*.")
 
 # -----------------------------
-# Single Prediction
+# Data Quality Checks
 # -----------------------------
-elif menu == "🔮 Predict Single":
-    st.title("🔮 Single Customer Prediction")
+st.header("🔍 Data Quality Checks")
+col1, col2, col3 = st.columns(3)
 
-    model, scaler, feature_names = load_model()
+with col1:
+    st.metric("Total Rows", df.shape[0])
+with col2:
+    st.metric("Null Values", int(df.isnull().sum().sum()))
+with col3:
+    st.metric("Duplicates", df.duplicated().sum())
 
-    # Input form
-    input_dict = {}
-    for feature in feature_names:
-        if feature in ["voice_mail_plan", "international_plan"]:
-            input_dict[feature] = 1 if st.selectbox(feature, ["no", "yes"]) == "yes" else 0
-        else:
-            input_dict[feature] = st.number_input(feature, value=0.0)
-
-    input_data = pd.DataFrame([input_dict])
-
-    if st.button("Predict"):
-        input_data = input_data.reindex(columns=feature_names, fill_value=0)
-        input_scaled = scaler.transform(input_data)
-        pred = model.predict(input_scaled)[0]
-        if pred == 1:
-            st.error("⚠ Customer likely to *CHURN*")
-        else:
-            st.success("✅ Customer will *STAY*")
+# Churn distribution
+churn_counts = df['churn'].value_counts()
+st.write("### Churn Distribution")
+fig, ax = plt.subplots()
+ax.pie(churn_counts, labels=churn_counts.index, autopct='%1.1f%%', startangle=90, colors=["#66b3ff", "#ff9999"])
+st.pyplot(fig)
 
 # -----------------------------
-# Bulk Prediction
+# Enhanced EDA
 # -----------------------------
-elif menu == "📂 Bulk Prediction":
-    st.title("📂 Bulk Prediction")
-    model, scaler, feature_names = load_model()
+st.header("📈 Exploratory Data Analysis")
 
-    uploaded_file = st.file_uploader("Upload CSV for Prediction", type=["csv"])
-    if uploaded_file is not None:
-        new_data = pd.read_csv(uploaded_file)
-        new_data_enc = preprocess_data(new_data)
+num_cols = df.select_dtypes(include=np.number).columns.tolist()
+cat_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-        X_new = new_data_enc.reindex(columns=feature_names, fill_value=0)
-        X_new_scaled = scaler.transform(X_new)
+st.subheader("Numerical Feature Distributions")
+fig, axes = plt.subplots(2, 3, figsize=(12, 6))
+for i, col in enumerate(num_cols[:6]):
+    sns.histplot(df[col], kde=True, ax=axes[i//3, i%3], color="skyblue")
+    axes[i//3, i%3].set_title(col)
+st.pyplot(fig)
 
-        preds = model.predict(X_new_scaled)
-        new_data["Churn_Pred"] = ["Yes" if p == 1 else "No" for p in preds]
+st.subheader("Categorical Feature Distributions")
+if len(cat_cols) > 0:
+    fig, axes = plt.subplots(1, len(cat_cols), figsize=(12, 4))
+    if len(cat_cols) == 1:
+        axes = [axes]
+    for i, col in enumerate(cat_cols):
+        sns.countplot(x=df[col], ax=axes[i], palette="pastel")
+        axes[i].set_title(col)
+    st.pyplot(fig)
 
-        st.dataframe(new_data.head())
+# -----------------------------
+# Preprocessing
+# -----------------------------
+# Encode categorical
+if 'voice_mail_plan' in df.columns:
+    df['voice_mail_plan'] = df['voice_mail_plan'].map({'yes': 1, 'no': 0})
+if 'international_plan' in df.columns:
+    df['international_plan'] = df['international_plan'].map({'yes': 1, 'no': 0})
 
-        csv = new_data.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Download Predictions", data=csv,
-                           file_name="churn_predictions.csv", mime="text/csv")
+# Drop ID column if present
+if 'phone_number' in df.columns:
+    df = df.drop('phone_number', axis=1)
 
+# Features/target
+X = df.drop('churn', axis=1)
+y = df['churn']
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Scale numeric features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# -----------------------------
+# Train Multiple Models
+# -----------------------------
+models = {
+    "Logistic Regression": LogisticRegression(max_iter=1000),
+    "Random Forest": RandomForestClassifier(n_estimators=200, random_state=42),
+    "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+}
+
+results = {}
+
+for name, model in models.items():
+    model.fit(X_train_scaled, y_train)
+    preds = model.predict(X_test_scaled)
+    results[name] = {
+        "Accuracy": accuracy_score(y_test, preds),
+        "Precision": precision_score(y_test, preds),
+        "Recall": recall_score(y_test, preds),
+        "F1": f1_score(y_test, preds)
+    }
+
+# -----------------------------
+# Model Comparison
+# -----------------------------
+st.header("🤖 Model Comparison")
+results_df = pd.DataFrame(results).T
+st.dataframe(results_df.style.background_gradient(cmap="Blues"))
+
+fig, ax = plt.subplots(figsize=(8, 4))
+results_df[["Accuracy", "F1"]].plot(kind="bar", ax=ax)
+plt.title("Model Performance")
+plt.xticks(rotation=0)
+st.pyplot(fig)
+
+# Best model
+best_model_name = results_df["Accuracy"].idxmax()
+best_model = models[best_model_name]
+st.success(f"Best Model: {best_model_name} with Accuracy = {results_df['Accuracy'].max():.2f}")
+
+# -----------------------------
+# Prediction Section
+# -----------------------------
+st.header("🔮 Make Predictions")
+
+option = st.radio("Choose Prediction Type", ("Single Prediction", "Bulk Prediction"))
+
+if option == "Single Prediction":
+    st.subheader("Single Customer Prediction")
+    input_data = []
+    for col in X.columns:
+        value = st.number_input(f"{col}", float(df[col].min()), float(df[col].max()), float(df[col].mean()))
+        input_data.append(value)
+    input_df = pd.DataFrame([input_data], columns=X.columns)
+    input_scaled = scaler.transform(input_df)
+    pred = best_model.predict(input_scaled)[0]
+    st.write("### Prediction Result:", "🚨 Churn" if pred == 1 else "✅ Not Churn")
+
+else:
+    st.subheader("Bulk Prediction")
+    file = st.file_uploader("Upload CSV for Bulk Prediction", type=["csv"])
+    if file is not None:
+        bulk_data = pd.read_csv(file)
+        bulk_scaled = scaler.transform(bulk_data)
+        preds = best_model.predict(bulk_scaled)
+        bulk_data['Churn_Prediction'] = preds
+        st.dataframe(bulk_data.head())
+        csv = bulk_data.to_csv(index=False).encode('utf-8')
+        st.download_button("Download Predictions", csv, "bulk_predictions.csv", "text/csv")
+
+
+Here’s your clean, professional, single-page dashboard with:
