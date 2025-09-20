@@ -85,7 +85,7 @@ def remove_outliers(df, cols):
 def load_model():
     """Load pre-trained model."""
     try:
-        model, scaler, feature_names = pickle.load(open("churn_model.pkl", "rb"))
+        model, scaler, feature_names = pickle.load(open("churn_xgb_model.pkl", "rb"))
         return model, scaler, feature_names
     except FileNotFoundError:
         st.error("⚠️ Pre-trained model not found! Please ensure 'churn_model.pkl' exists.")
@@ -224,3 +224,4 @@ elif menu == "📂 Bulk Prediction":
         csv = new_data.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Predictions", data=csv,
                            file_name="churn_predictions.csv", mime="text/csv")
+
