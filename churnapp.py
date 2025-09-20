@@ -17,7 +17,7 @@ from xgboost import XGBClassifier
 # -----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("telecommunication_churn.csv")
+    df = pd.read_csv("telecommunications_churn.csv")
     return df
 
 df = load_data()
@@ -169,4 +169,5 @@ else:
 
 
 #Here’s your clean, professional, single-page dashboard with:
+
 
