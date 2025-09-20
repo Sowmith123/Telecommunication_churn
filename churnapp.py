@@ -18,7 +18,7 @@ import pickle
 # -----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("telecommunication_churn.csv")   # 👈 make sure dataset is uploaded
+    df = pd.read_csv("telecommunications_churn.csv")   # 👈 make sure dataset is uploaded
     return df
 
 def preprocess_data(df):
@@ -204,3 +204,4 @@ elif menu == "📂 Bulk Prediction":
         csv = new_data.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Predictions", data=csv,
                            file_name="churn_predictions.csv", mime="text/csv")
+
