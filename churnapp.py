@@ -19,7 +19,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 @st.cache_data
 def load_data(uploaded_file=None):
     try:
-        df = pd.read_csv("telecommunication_churn.csv")
+        df = pd.read_csv("telecommunications_churn.csv")
         return df
     except FileNotFoundError:
         if uploaded_file is not None:
@@ -243,3 +243,4 @@ elif menu == "📂 Bulk Prediction":
 
         csv = new_data.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Predictions", data=csv, file_name="churn_predictions.csv", mime="text/csv")
+
