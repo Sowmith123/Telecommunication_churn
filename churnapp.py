@@ -34,7 +34,7 @@ st.set_page_config(page_title="Telecom Churn Dashboard", layout="wide")
 
 with st.sidebar.expander("ℹ️ About this App", expanded=True):
     st.write("""
-    This dashboard analyzes telecom churn data and predicts customer churn using a pre-trained Random Forest model.
+    This dashboard analyzes telecom churn data and predicts customer churn using a pre-trained Xgboost model.
     
     **Tech Stack:** Streamlit, Pandas, Plotly, Scikit-learn  
     **Dataset:** telecommunications_churn.csv  
@@ -224,4 +224,5 @@ elif menu == "📂 Bulk Prediction":
         csv = new_data.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download Predictions", data=csv,
                            file_name="churn_predictions.csv", mime="text/csv")
+
 
